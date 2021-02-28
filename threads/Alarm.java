@@ -1,5 +1,6 @@
 package nachos.threads;
 
+import java.util.PriorityQueue;
 import nachos.machine.*;
 
 /**
@@ -7,6 +8,9 @@ import nachos.machine.*;
  * until a certain time.
  */
 public class Alarm {
+
+    PriorityQueue<AlarmThreadWaiter> waitUntilQueue = new PriorityQueue<AlarmThreadWaiter>();
+
     /**
      * Allocate a new Alarm. Set the machine's timer interrupt handler to this
      * alarm's callback.
@@ -15,8 +19,8 @@ public class Alarm {
      * alarm.
      */
     public Alarm() {
-	Machine.timer().setInterruptHandler(new Runnable() {
-		public void run() { timerInterrupt(); }
+	    Machine.timer().setInterruptHandler(new Runnable() {
+		    public void run() { timerInterrupt(); }
 	    });
     }
 
@@ -27,7 +31,16 @@ public class Alarm {
      * that should be run.
      */
     public void timerInterrupt() {
-	KThread.currentThread().yield();
+        long currentTime = Machine.timer().getTime();
+        AlarmThreadWaiter nextWaiter = waitUntilQueue.peek();
+
+        while((nextWaiter != null) && (nextWaiter.getWakeTime() <= currentTime)){
+            nextWaiter.getKThread().ready();
+            waitUntilQueue.remove();
+            nextWaiter = waitUntilQueue.peek();
+        }
+
+	    KThread.currentThread().yield();
     }
 
     /**
@@ -45,9 +58,71 @@ public class Alarm {
      * @see	nachos.machine.Timer#getTime()
      */
     public void waitUntil(long x) {
-	// for now, cheat just to get something working (busy waiting is bad)
-	long wakeTime = Machine.timer().getTime() + x;
-	while (wakeTime > Machine.timer().getTime())
-	    KThread.yield();
+        boolean intStatus = Machine.interrupt().disable();
+
+        long wakeTime = Machine.timer().getTime() + x;
+        AlarmThreadWaiter wrapper = new AlarmThreadWaiter(KThread.currentThread(), wakeTime);
+        waitUntilQueue.add(wrapper);
+        KThread.sleep();
+        Machine.interrupt().restore(intStatus);
+    }
+
+    /**
+     * The alarm class create a new AlarmThreadWaiter object for each thread that wants to wait.
+     */
+    public class AlarmThreadWaiter implements Comparable<AlarmThreadWaiter>{
+
+        //this is the KThread thats wants to wait.
+        private KThread myThread;
+        //This is the time at which the Kthread wants to wake up at.
+        private long wakeTime;
+
+        /**
+         * Constructor for the AlarmThreadWaiter object.
+         * @param thread The Thread that wants to wait.
+         * @param time The time at which the thread wants to wake up at.
+         */
+        public AlarmThreadWaiter(KThread thread, long time){
+            myThread = thread;
+            wakeTime = time;
+        }
+
+        public int compareTo(AlarmThreadWaiter waiter){
+            long waiterTime = waiter.getWakeTime();
+
+            if (this.wakeTime > waiterTime){
+                return 1;
+            }
+            else if (this.wakeTime == waiterTime){
+                return 0;
+            }
+            else {
+                return -1;
+            }
+        }
+
+        /**
+         * Get the value of the wakeTime of the AlarmThreadWaiteer object.
+         * @return the time at which the thread should wake at as a long.
+         */
+        public long getWakeTime(){
+            return wakeTime;
+        }
+
+        /**
+         * Get the thread of the AlarmThreadWaiteer object.
+         * @return the thread as a KThread.
+         */
+        public KThread getKThread(){
+            return myThread;
+        }
+
+    }
+
+    /**
+     * Tests for the Alarm class.
+     */
+    public static void selfTest(){
+        
     }
 }
