@@ -145,7 +145,7 @@ public class Alarm {
      * Tests for the Alarm class.
      */
     public static void selfTest() {
-        System.out.println("*****************From Alarm***************************");
+        System.out.println("\n*****************From Alarm***************************");
 
         System.out.println("Start of test1");
         test1();
@@ -194,17 +194,25 @@ public class Alarm {
                 ThreadedKernel.alarm.waitUntil(sleepTime);
                 long wakeTime = Machine.timer().getTime();
                 System.out.println("Wait set to " + sleepTime + " ticks, actual wait: " + (wakeTime - startTime) + " ticks");
+                assertionT1.reached();
+            }
+        });
+
+        KThread t2 = new KThread(new Runnable(){
+            public void run(){
+                long startTime = Machine.timer().getTime();
+                long sleepTime = 2500;
+                ThreadedKernel.alarm.waitUntil(sleepTime);
+                long wakeTime = Machine.timer().getTime();
+                System.out.println("Wait set to " + sleepTime + " ticks, actual wait: " + (wakeTime - startTime) + " ticks");
                 assertionT2.reached();
             }
         });
+
         t1.fork();
-        long startTime = Machine.timer().getTime();
-        long sleepTime = 2500;
-        ThreadedKernel.alarm.waitUntil(sleepTime);
-        long wakeTime = Machine.timer().getTime();
-        System.out.println("Wait set to " + sleepTime + " ticks, actual wait: " + (wakeTime - startTime) + " ticks");
-        assertionT1.reached();
-        while(!assertionT2.hasReached()){
+        t2.fork();
+
+        while(!assertionT1.hasReached() || !assertionT2.hasReached()){
             KThread.yield();
         }
     }
