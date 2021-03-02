@@ -27,7 +27,7 @@ public class Communicator{
         speaker = new Condition(lock);
         listener = new Condition(lock);
         reader = new Condition(lock);
-        //buffer to hold messages due to the fast processing time
+        //buffer to hold messages due to the fast processing time, linked list is fastest and cleanest
         messages = new LinkedList<Integer>();
     }
 
@@ -44,10 +44,12 @@ public class Communicator{
     public void speak(int word) {
         lock.acquire();
         speakersReady++;
+	//while other speakers, sleep
         while(!messages.isEmpty()) 
             speaker.sleep();
         messages.add(word);
         listener.wake();
+	//make sure listener has the message 
         while(!messageRead)
             reader.sleep();
         messageRead = false;
@@ -65,9 +67,11 @@ public class Communicator{
     public int listen() {
         lock.acquire();
         listenersReady++;
+	//wait until theres a message in buffer
         while(messages.isEmpty())
             listener.sleep();
         int message = (int)messages.removeFirst();
+	//let the speaker know the messsage is read
         messageRead = true;
         speakersReady--;
         reader.wake();
