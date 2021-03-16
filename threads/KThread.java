@@ -1,7 +1,8 @@
 package nachos.threads;
 
 import nachos.machine.*;
-
+import java.util.LinkedList;
+import java.util.Queue;
 /**
  * A KThread is a thread that can be used to execute Nachos kernel code. Nachos
  * allows multiple threads to run concurrently.
@@ -143,16 +144,15 @@ public class KThread {
 		  "Forking thread: " + toString() + " Runnable: " + target);
 
 	boolean intStatus = Machine.interrupt().disable();
-
 	tcb.start(new Runnable() {
 		public void run() {
 		    runThread();
 		}
 	    });
-
 	ready();
 	
 	Machine.interrupt().restore(intStatus);
+	
     }
 
     private void runThread() {
@@ -165,7 +165,6 @@ public class KThread {
 	Lib.debug(dbgThread, "Beginning thread: " + toString());
 	
 	Lib.assertTrue(this == currentThread);
-
 	restoreState();
 
 	Machine.interrupt().enable();
@@ -255,7 +254,6 @@ public class KThread {
      */
     public void ready() {
 	Lib.debug(dbgThread, "Ready thread: " + toString());
-	
 	Lib.assertTrue(Machine.interrupt().disabled());
 	Lib.assertTrue(status != statusReady);
 	
@@ -274,18 +272,41 @@ public class KThread {
      */
     public void join() {
 	Lib.debug(dbgThread, "Joining to thread: " + toString());
-	if(this.compareTo(currentThread) == 0 || status == statusFinished)//Some rudimentary stuff. Not finished or checked yet.
+	
+
+	for (KThread item: QCheck)
 	{
+		if(this == item)
+		{
+			System.out.println("Thread has already been called");
+			return;
+		}
+	}
+	if(this.compareTo(currentThread) == 0)//This is if the main thread checked it. Do this now!
+	{
+		System.out.println("Current thread cannot be joined");
+		return;//cannot be current thread 
+	}
+	if(this.status == statusFinished)
+	{
+		this.restoreState();
 		return;
 	}
-	while(this.compareTo(currentThread) != 0 || status != statusFinished)
+	else 
 	{
-		this.wait();
+		QCheck.add(this);
+		Machine.interrupt().disable();
+		this.currentThread.status = statusFinished;
+		System.out.println("Thread has been loaded into queue");
+				
+			
 	}
 
 	Lib.assertTrue(this != currentThread);
 
     }
+	
+
 
     /**
      * Create the idle thread. Whenever there are no threads ready to be run,
@@ -372,14 +393,20 @@ public class KThread {
 	Machine.autoGrader().runningThread(this);
 	
 	status = statusRunning;
+	for (KThread item: QCheck)
+	{
+		readyQueue.waitForAccess(item);
+	}
+
+	
 
 	if (toBeDestroyed != null) {
 	    toBeDestroyed.tcb.destroy();
 	    toBeDestroyed.tcb = null;
 	    toBeDestroyed = null;
 	}
-    }
-
+    }//For loop that goes through the ThreadQueue and moves them into the readyQueue 
+//Machine sleeper
     /**
      * Prepare this thread to give up the processor. Kernel threads do not
      * need to do anything here.
@@ -411,9 +438,18 @@ public class KThread {
     public static void selfTest() {
 	Lib.debug(dbgThread, "Enter KThread.selfTest");
 	System.out.println("*****************From KThread***************************");	
+	PingTest v = new PingTest(2);
 	new KThread(new PingTest(1)).setName("forked thread").fork();
 	new PingTest(0).run();
+	System.out.println("First Test: currentThread cannot be called. Join will exit");
+	currentThread.join();
+	System.out.println("Second Test: Once a thread has been processed, it will immediately exit the join");
+	KThread same = new KThread(new PingTest(2)).setName("Same thread");
+	new PingTest(1).run();
+	same.join();
+	same.join();
     }
+	
 
     private static final char dbgThread = 't';
 
@@ -449,7 +485,10 @@ public class KThread {
     private static int numCreated = 0;
 
     private static ThreadQueue readyQueue = null;
+	private static ThreadQueue tq = null;
+	Queue<KThread> QCheck = new LinkedList<KThread>();
     private static KThread currentThread = null;
     private static KThread toBeDestroyed = null;
     private static KThread idleThread = null;
+	private int number = 0;
 }
