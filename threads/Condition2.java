@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.LinkedList;
+
 /**
  * An implementation of condition variables that disables interrupt()s for
  * synchronization.
@@ -12,6 +14,9 @@ import nachos.machine.*;
  * @see	nachos.threads.Condition
  */
 public class Condition2 {
+	private Lock conditionLock;
+	private LinkedList<KThread> queue;
+
     /**
      * Allocate a new condition variable.
      *
@@ -21,7 +26,8 @@ public class Condition2 {
      *				<tt>wake()</tt>, or <tt>wakeAll()</tt>.
      */
     public Condition2(Lock conditionLock) {
-	this.conditionLock = conditionLock;
+		this.conditionLock = conditionLock;
+		this.queue = new LinkedList<KThread>();
     }
 
     /**
@@ -31,11 +37,23 @@ public class Condition2 {
      * automatically reacquire the lock before <tt>sleep()</tt> returns.
      */
     public void sleep() {
-	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
-
-	conditionLock.release();
-
-	conditionLock.acquire();
+		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		Machine.interrupt().disable();
+		if(Machine.interrupt().disabled() == true) {
+			this.queue.add(KThread.currentThread());
+			conditionLock.release();
+			KThread.sleep();
+			conditionLock.acquire();
+			Machine.interrupt().enable();
+			if(Machine.interrupt().enabled() == false) {
+				System.err.println("INTERRUPT_ENABLE_FAIL");
+				return;
+			}
+		}
+		else {
+			System.err.println("INTERRUPT_DISABLE_FAIL");
+			return;
+		}
     }
 
     /**
@@ -43,7 +61,22 @@ public class Condition2 {
      * current thread must hold the associated lock.
      */
     public void wake() {
-	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		Machine.interrupt().disable();
+		if(Machine.interrupt().disabled() == true) {
+			if(!this.queue.isEmpty()) {
+				this.queue.remove().ready();
+			}
+			Machine.interrupt().enable();
+			if(Machine.interrupt().enabled() == false) {
+				System.err.println("INTERRUPT_ENABLE_FAIL");
+				return;
+			}
+		}
+		else {
+			System.err.println("INTERRUPT_DISABLE_FAIL");
+			return;
+		}
     }
 
     /**
@@ -51,8 +84,10 @@ public class Condition2 {
      * thread must hold the associated lock.
      */
     public void wakeAll() {
-	Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		while(!this.queue.isEmpty()) {
+			wake();
+		}
     }
 
-    private Lock conditionLock;
 }
