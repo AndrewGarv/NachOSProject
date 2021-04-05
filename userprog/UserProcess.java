@@ -36,6 +36,7 @@ public class UserProcess {
     public UserProcess() {
 	int numPhysPages = Machine.processor().getNumPhysPages();
 	pageTable = new TranslationEntry[numPhysPages];
+	selfTest();
 	for (int i=0; i<numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
     }
@@ -346,6 +347,19 @@ public class UserProcess {
 	processor.writeRegister(Processor.regA1, argv);
     }
 
+	
+	
+	private void selfTest() {
+		System.out.println("Howdy, I'm UserProcess!");
+		System.out.println("The C test program is called task3test.c. Here are the test cases:");
+		System.out.println("1. Attempt to open non-existent file");
+		System.out.println("2. Attempt to open a file with null argument");
+		System.out.println("3. Execution Error");
+		System.out.println("4. Attempt to join a non-child process");
+		System.out.println("5. Execute process");
+		System.out.println("6. Join child process");
+		System.out.println("7. Exit process");
+	}
     /**
      * Handle the halt() system call. 
      */
