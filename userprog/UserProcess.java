@@ -6,6 +6,8 @@ import nachos.userprog.*;
 
 import java.io.EOFException;
 
+
+
 /**
  * Encapsulates the state of a user process that is not contained in its
  * user thread (or threads). This includes its address translation state, a
@@ -19,6 +21,15 @@ import java.io.EOFException;
  * @see	nachos.network.NetProcess
  */
 public class UserProcess {
+	
+	protected OpenFile[] fd;
+  	protected int pid;
+  	protected UserProcess parent;
+  	protected Semaphore procMutex = new Semaphore(1);
+  	protected Hashtable<Integer, UserProcess> children = new Hashtable<Integer, UserProcess>();
+  	protected Integer exitStatus;
+  	protected Lock statusLock;
+	
     /**
      * Allocate a new process.
      */
@@ -346,9 +357,93 @@ public class UserProcess {
 	return 0;
     }
 
-
+	private int handleExec(int file, int argc, int argv) {
+		String filename == null;
+		filename = readVirtualMemoryString(file, 256);
+		if(filename == null) {
+			System.err.println("UNREADABLE_FILENAME_EXCEPTION");
+			return -1;
+		}
+		String[] args = new String[argc];
+		byte[] buffer = new byte[4];
+		for(int i = 0; i < argc; i++) {
+			args[i] = readVirtualMemoryString(Lib.bytesToInt(buffer, 0), 256);
+			if(args[i] == null) {
+				System.err.println("UNREADABLE_ARGUMENT_EXCEPTION");
+				return -1;
+			}
+		}
+		UserProcess child = newUserProcess();
+		this.children.put(child.pid, child);
+		child.parent = this;
+		boolean insProg = child.execute(filename, args);
+		if(insProg) {
+			return child.pid;
+			return -1;
+		}
+	}
+	
+	private int handleJoin(int procid, int status) {
+		if(!this.children.containsKey(procid)) {
+			System.err.println("NON_CHILD_EXCEPTION");
+			return -1;
+		}
+		UserProcess child = this.children.get(procid);
+		child.statusLock.acquire();
+		int childStatus = child.exitStatus;
+		if(childStatus == null) {
+			this.statusLock.acquire();
+			child.statusLock.release();
+			this.joinCond.sleep();
+			this.statusLock.release();
+			child.statusLock.acquire();
+			childStatus = child.exitStatus;
+		}
+		child.statusLock.release();
+		this.children.remove(procid);
+		byte[] statuses = Lib.bytesFromInt(childStatus.intValue());
+		writeVirtualMemory(status, statuses);
+		if(childStatus.intValue() == 0) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+	
+	private int handleExit(int status) {
+		unloadSections();
+		
+		for(int i = 2; i < this.fd.length; i++) {
+			if(this.fd[i] != null) {
+				this.fd[i].close;
+			}
+		}
+		
+		this.statusLock.acquire();
+		this.exitStatus = status;
+		this.statusLock.release();
+		this.procMutex.P();
+		
+		if(this.parent != null) {
+			this.parent.statusLock.acquire();
+			this.parent.joinCond.wakeAll();
+			this.parent.statusLock.release();
+		}
+		
+		this.procMutex.V();
+		
+		for(UserProcess childproc : this.children.values()) {
+			childproc.procMutex.P();
+			childproc.parent = null;
+			childproc.procMutex.V();
+		}
+		UserKernel.numProcesses--;
+		UThread.finish();
+		return status;
+	}
+	
     private static final int
-        syscallHalt = 0,
+    syscallHalt = 0,
 	syscallExit = 1,
 	syscallExec = 2,
 	syscallJoin = 3,
@@ -391,8 +486,12 @@ public class UserProcess {
 	switch (syscall) {
 	case syscallHalt:
 	    return handleHalt();
-
-
+	case syscallExec:
+	    return handleExec(a0, a1, a2);
+	case syscallJoin:
+	    return handleJoin(a0, a1);
+	case syscallExit:
+	    return handleExit(a0);
 	default:
 	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 	    Lib.assertNotReached("Unknown system call!");
