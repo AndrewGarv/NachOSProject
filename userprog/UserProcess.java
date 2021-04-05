@@ -437,7 +437,6 @@ public class UserProcess {
 			childproc.parent = null;
 			childproc.procMutex.V();
 		}
-		UserKernel.numProcesses--;
 		UThread.finish();
 		return status;
 	}
