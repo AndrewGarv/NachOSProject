@@ -1,5 +1,7 @@
 package nachos.userprog;
 
+import java.util.LinkedList;
+
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -45,7 +47,7 @@ public class UserKernel extends ThreadedKernel {
     }
 
 
-    
+
 
 
 
