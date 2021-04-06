@@ -139,20 +139,36 @@ public class UserProcess {
      *			the array.
      * @return	the number of bytes successfully transferred.
      */
-    public int readVirtualMemory(int vaddr, byte[] data, int offset,
-				 int length) {
-	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
+    public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		
+		//check if any value are invalid, if true return 0 as no data was transferred.
+		if((vaddr < 0) || (data == null) || (offset < 0) || (length < 0) || (offset+length > data.length)){
+			return 0;
+		}
+		byte[] memory = Machine.processor().getMemory();
+		int vpn = Processor.pageFromAddress(vaddr);
+		int off = Processor.offsetFromAddress(vaddr);
+		int ppn = -1;
+		int amount = 0;
+		int copyAmount = 0;
 
-	byte[] memory = Machine.processor().getMemory();
-	
-	// for now, just assume that virtual addresses equal physical addresses
-	if (vaddr < 0 || vaddr >= memory.length)
-	    return 0;
+		while(length > 0){
+			//check if vpn is valid
+			if(vpn > pageTable.length || vpn < 0){
+				break;
+			}
+			pageTable[vpn].used = true;
+			ppn = pageTable[vpn].ppn;
+			int paddr = Processor.makeAddress(ppn, off);
+			copyAmount = Math.min(pageSize - off, length);
+			System.arraycopy(memory, paddr, data, offset + amount, copyAmount);
+			off = 0;
+			amount += copyAmount;
+			length -= copyAmount;
+			vpn++;
+		}
 
-	int amount = Math.min(length, memory.length-vaddr);
-	System.arraycopy(memory, vaddr, data, offset, amount);
-
-	return amount;
+		return amount;
     }
 
     /**
@@ -372,7 +388,7 @@ public class UserProcess {
     }
 
 	private int handleExec(int file, int argc, int argv) {
-		String filename == null;
+		String filename = null;
 		filename = readVirtualMemoryString(file, 256);
 		if(filename == null) {
 			System.err.println("UNREADABLE_FILENAME_EXCEPTION");
@@ -404,7 +420,7 @@ public class UserProcess {
 		}
 		UserProcess child = this.children.get(procid);
 		child.statusLock.acquire();
-		int childStatus = child.exitStatus;
+		child childStatus = child.exitStatus;
 		if(childStatus == null) {
 			this.statusLock.acquire();
 			child.statusLock.release();
@@ -429,7 +445,7 @@ public class UserProcess {
 		
 		for(int i = 2; i < this.fd.length; i++) {
 			if(this.fd[i] != null) {
-				this.fd[i].close;
+				this.fd[i].close();
 			}
 		}
 		
