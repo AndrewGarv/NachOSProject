@@ -17,7 +17,7 @@ void narg() {
 	char filename[20];
 	printf("Enter the name of a program that DOES exist.\n");
 	scanf("%s", filename);
-	exec(randFile, 1, NULL);
+	exec(filename, 1, NULL);
 	halt();
 }
 
@@ -35,11 +35,11 @@ void ncp() {
 	halt();
 }
 
-void exprog(); {
+void exprog() {
 	char filename[20];
 	printf("Enter the name of a program that DOES exist.\n");
 	scanf("%s", filename);
-	exec(randFile, 0, "");
+	exec(filename, 0, "");
 	halt();
 }
 
