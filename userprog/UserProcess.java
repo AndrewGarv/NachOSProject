@@ -29,6 +29,7 @@ public class UserProcess {
   	protected Hashtable<Integer, UserProcess> children = new Hashtable<Integer, UserProcess>();
   	protected Integer exitStatus;
   	protected Lock statusLock;
+	protected Condition joinCondition;
 	
     /**
      * Allocate a new process.
@@ -408,7 +409,7 @@ public class UserProcess {
 		if(childStatus == null) {
 			this.statusLock.acquire();
 			child.statusLock.release();
-			this.joinCond.sleep();
+			this.joinCondition.sleep();
 			this.statusLock.release();
 			child.statusLock.acquire();
 			childStatus = child.exitStatus;
@@ -440,7 +441,7 @@ public class UserProcess {
 		
 		if(this.parent != null) {
 			this.parent.statusLock.acquire();
-			this.parent.joinCond.wakeAll();
+			this.parent.joinCondition.wakeAll();
 			this.parent.statusLock.release();
 		}
 		
