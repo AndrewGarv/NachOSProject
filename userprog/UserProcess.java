@@ -30,6 +30,7 @@ public class UserProcess {
   	protected Hashtable<Integer, UserProcess> children = new Hashtable<Integer, UserProcess>();
   	protected Integer exitStatus;
   	protected Lock statusLock;
+	  protected Condition joinCondition;
 	
     /**
      * Allocate a new process.
@@ -417,7 +418,7 @@ public class UserProcess {
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
-/*
+
 	private int handleExec(int file, int argc, int argv) {
 		String filename = null;
 		filename = readVirtualMemoryString(file, 256);
@@ -440,8 +441,8 @@ public class UserProcess {
 		boolean insProg = child.execute(filename, args);
 		if(insProg) {
 			return child.pid;
-			return -1;
 		}
+		return -1;
 	}
 	
 	private int handleJoin(int procid, int status) {
@@ -451,13 +452,13 @@ public class UserProcess {
 		}
 		UserProcess child = this.children.get(procid);
 		child.statusLock.acquire();
-		UserProcess childStatus = child.exitStatus;
+		Integer childStatus = child.exitStatus;
 		if(childStatus == null) {
-			//this.statusLock.acquire();
-			//child.statusLock.release();
-			//this.joinCond.sleep();
-			//this.statusLock.release();
-			//child.statusLock.acquire();
+			this.statusLock.acquire();
+			child.statusLock.release();
+			this.joinCondition.sleep();
+			this.statusLock.release();
+			child.statusLock.acquire();
 			childStatus = child.exitStatus;
 		}
 		child.statusLock.release();
@@ -473,26 +474,26 @@ public class UserProcess {
 	
 	private int handleExit(int status) {
 		unloadSections();
-		
+
 		for(int i = 2; i < this.fd.length; i++) {
 			if(this.fd[i] != null) {
 				this.fd[i].close();
 			}
 		}
-		
+
 		this.statusLock.acquire();
 		this.exitStatus = status;
 		this.statusLock.release();
 		this.procMutex.P();
-		
+
 		if(this.parent != null) {
-			//this.parent.statusLock.acquire();
-			//this.parent.joinCond.wakeAll();
-			//this.parent.statusLock.release();
+			this.parent.statusLock.acquire();
+			this.parent.joinCondition.wakeAll();
+			this.parent.statusLock.release();
 		}
-		
+
 		this.procMutex.V();
-		
+
 		for(UserProcess childproc : this.children.values()) {
 			childproc.procMutex.P();
 			childproc.parent = null;
@@ -500,7 +501,7 @@ public class UserProcess {
 		}
 		return status;
 	}
-*/	
+	
     private static final int
     syscallHalt = 0,
 	syscallExit = 1,
@@ -545,12 +546,12 @@ public class UserProcess {
 	switch (syscall) {
 	case syscallHalt:
 	    return handleHalt();
-	//case syscallExec:
-	//    return handleExec(a0, a1, a2);
-	//case syscallJoin:
-	//    return handleJoin(a0, a1);
-	//case syscallExit:
-	//    return handleExit(a0);
+	case syscallExec:
+	    return handleExec(a0, a1, a2);
+	case syscallJoin:
+	    return handleJoin(a0, a1);
+	case syscallExit:
+	    return handleExit(a0);
 	default:
 	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 	    Lib.assertNotReached("Unknown system call!");
