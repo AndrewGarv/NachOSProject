@@ -1,5 +1,7 @@
 package nachos.userprog;
 
+import java.util.LinkedList;
+
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -8,12 +10,46 @@ import nachos.userprog.*;
  * A kernel that can support multiple user processes.
  */
 public class UserKernel extends ThreadedKernel {
+
     /**
      * Allocate a new user kernel.
      */
     public UserKernel() {
-	super();
+	    super();
+        freePageList = new LinkedList<Integer>();
+    	int numPhysPages = Machine.processor().getNumPhysPages();
+    	for (int i = 0; i < numPhysPages; i++)
+    		freePageList.addLast(i);
     }
+
+    /**
+     * Retrieve a physical page from freePageList, if any are available
+     */
+    protected static int getNextAvailablePage(){
+    	freePageListLock.acquire();
+    	int ppn = -1;
+    	if(!freePageList.isEmpty())
+    		ppn = (int) freePageList.removeFirst();
+        freePageListLock.release();
+    	return ppn;
+    }
+    
+    /**
+     * Return a physical page to freePageList
+     */
+    protected static void returnAvailablePage(int ppn){
+    	if (ppn < 0 || ppn > Machine.processor().getNumPhysPages())
+    		return;
+        freePageListLock.acquire();
+    	if(!freePageList.contains(ppn))
+            freePageList.addLast(ppn);
+    	freePageListLock.release();
+    }
+
+
+
+
+
 
     /**
      * Initialize this kernel. Creates a synchronized console and sets the
@@ -23,7 +59,7 @@ public class UserKernel extends ThreadedKernel {
 	super.initialize(args);
 
 	console = new SynchConsole(Machine.console());
-	
+	freePageListLock = new Lock();
 	Machine.processor().setExceptionHandler(new Runnable() {
 		public void run() { exceptionHandler(); }
 	    });
@@ -33,20 +69,20 @@ public class UserKernel extends ThreadedKernel {
      * Test the console device.
      */	
     public void selfTest() {
-	super.selfTest();
+        super.selfTest();
+        /*
+        System.out.println("Testing the console device. Typed characters");
+        System.out.println("will be echoed until q is typed.");
 
-	System.out.println("Testing the console device. Typed characters");
-	System.out.println("will be echoed until q is typed.");
+        char c;
 
-	char c;
-
-	do {
-	    c = (char) console.readByte(true);
-	    console.writeByte(c);
-	}
-	while (c != 'q');
-
-	System.out.println("");
+        do {
+            c = (char) console.readByte(true);
+            console.writeByte(c);
+        }
+        while (c != 'q');
+        */
+        System.out.println("");
     }
 
     /**
@@ -55,10 +91,10 @@ public class UserKernel extends ThreadedKernel {
      * @return	the current process, or <tt>null</tt> if no process is current.
      */
     public static UserProcess currentProcess() {
-	if (!(KThread.currentThread() instanceof UThread))
-	    return null;
-	
-	return ((UThread) KThread.currentThread()).process;
+        if (!(KThread.currentThread() instanceof UThread))
+            return null;
+        
+        return ((UThread) KThread.currentThread()).process;
     }
 
     /**
@@ -75,11 +111,11 @@ public class UserKernel extends ThreadedKernel {
      * that caused the exception.
      */
     public void exceptionHandler() {
-	Lib.assertTrue(KThread.currentThread() instanceof UThread);
+        Lib.assertTrue(KThread.currentThread() instanceof UThread);
 
-	UserProcess process = ((UThread) KThread.currentThread()).process;
-	int cause = Machine.processor().readRegister(Processor.regCause);
-	process.handleException(cause);
+        UserProcess process = ((UThread) KThread.currentThread()).process;
+        int cause = Machine.processor().readRegister(Processor.regCause);
+        process.handleException(cause);
     }
 
     /**
@@ -90,22 +126,26 @@ public class UserKernel extends ThreadedKernel {
      * @see	nachos.machine.Machine#getShellProgramName
      */
     public void run() {
-	super.run();
+        super.run();
 
-	UserProcess process = UserProcess.newUserProcess();
-	
-	String shellProgram = Machine.getShellProgramName();	
-	Lib.assertTrue(process.execute(shellProgram, new String[] { }));
+        UserProcess process = UserProcess.newUserProcess();
+        process.selfTest();
+        String shellProgram = Machine.getShellProgramName();	
+        Lib.assertTrue(process.execute(shellProgram, new String[] { }));
 
-	KThread.currentThread().finish();
+        KThread.currentThread().finish();
     }
 
     /**
      * Terminate this kernel. Never returns.
      */
     public void terminate() {
-	super.terminate();
+	    super.terminate();
     }
+
+    //Paging lock and list
+    protected static LinkedList<Integer> freePageList;
+	protected static Lock freePageListLock;
 
     /** Globally accessible reference to the synchronized console. */
     public static SynchConsole console;
