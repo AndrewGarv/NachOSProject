@@ -343,7 +343,7 @@ public class UserProcess {
 			return false;
 		}
 		//initialize page table
-		pageTable = new TranslationEntry[numPages];
+		//pageTable = new TranslationEntry[numPages];
 
 		int vpn = 0;
 		int ppn = -1;
@@ -353,7 +353,10 @@ public class UserProcess {
 			for(int i = 0; i < section.getLength(); s++){
 				vpn = section.getFirstVPN() + i;
 				ppn = UserKernel.getNextAvailablePage();
+				//System.out.println(ppn);
 				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
+				if(ppn < 0)
+					break;
 				section.loadPage(i, ppn);
 			}
 		}
@@ -593,12 +596,18 @@ public class UserProcess {
 
 
 	private static void task2Test() {
+
+		String[] dummyArgs = {"0"};
+
 		System.out.println("************ Task 2 Test **************");
 		System.out.println("Number of pages in all of memory: " + Machine.processor().getNumPhysPages());
 
 		UserProcess dummy1 = UserProcess.newUserProcess();
-		System.out.println(dummy1.numPages);
+		System.out.println("Dummy1's numPages before load is called:" + dummy1.numPages);
+		dummy1.load("sort.coff", dummyArgs);
+		System.out.println("Dummy1's numPages after load is called:" + dummy1.numPages);
 
+		
 		
 	}
 
