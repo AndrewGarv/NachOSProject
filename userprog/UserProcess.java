@@ -609,42 +609,59 @@ public class UserProcess {
 		dummy1.load("sort.coff", dummyArgs);
 		System.out.println("Dummy1's numPages after load is called:" + dummy1.numPages);
 		dummy1.loadSections();
-		System.out.println("");
 		for(int i = 0; i < dummy1.numPages; i++){
-			System.out.println(i +" ppn: "+dummy1.pageTable[i].ppn);
+			System.out.println("\t-> VPN: " + i +" ppn: "+dummy1.pageTable[i].ppn);
 		}
 
+		//Reading
 		byte[] memory = Machine.processor().getMemory();
         byte[] data = new byte[pageSize];
 		int vaddr = 1;
-
 		dummy1.readVirtualMemory(vaddr, data, 0, 1024);
-		///VVVV out is 0 0 0
-		System.out.println("dummy1 ReadingVM: " + " " + data[1021] + " " + data[1022] + " " + data[1023]);
+		System.out.println("dummy1 ReadingVM: " + " " + data[121] + " " + data[122] + " " + data[123]);
 
+		//Writing
+		int slots = 4;
+		vaddr = 1024 * slots - 1;
+        data = new byte[pageSize];
+        data[0] = 6;
+		data[1] = 9;
+		int numWritten = dummy1.writeVirtualMemory(vaddr, data, 0, 2);
+        int paddr = Processor.makeAddress(dummy1.pageTable[slots].ppn, 0);
+		System.out.println("dummy1: Number of bytes written: " + numWritten);
+        System.out.println("dummy1: Writing in VM: " + memory[paddr-1] + " " + memory[paddr] + " " + memory[paddr+1] + " " + memory[paddr+2]);
 
-
-		
+		//Unloading
+		int temp = UserKernel.freePageList.size();
+		System.out.println("dummy1: The list size before return ppn: " + temp);
 		dummy1.unloadSections();
+		System.out.println("dummy1: Checking to see if all ppn are returned: " + (UserKernel.freePageList.size() - temp));
+        System.out.println("dummy1: Verifying the last ppn added into the freePageList:");
+		for (int i = 0; i < dummy1.numPages; i++) {
+            int tempPPN = UserKernel.freePageList.get(temp + i);
+            System.out.println("\t-> ppn added at: " + (temp + i) + ", position: " + tempPPN);
+            UserKernel.freePageList.add(temp + i, tempPPN);
+        }
 
+		//dummy2
 		UserProcess dummy2 = UserProcess.newUserProcess();
-		System.out.println("VAR, dummy2: numPages variable before Load is called: " + dummy2.numPages);
-		dummy2.load("echo.coff", dummyArgs);
-		System.out.println("VAR, dummy2: numPages variable after Load is called: " + dummy2.numPages);
+		System.out.println("dummy2: numPages variable before load is called: " + dummy2.numPages);
+		dummy2.load("matmult.coff", dummyArgs);
+		System.out.println("dummy2: numPages variable after load is called: " + dummy2.numPages);
 		dummy2.loadSections();
-		System.out.println("VAR, dummy2: Checking number of PPN:" + dummy2.numPages);
+		System.out.println("dummy2: Checking number of ppn:" + dummy2.numPages);
 		for(int i = 0; i < dummy2.numPages; i++){
-			System.out.println("* VPN: " + i + ", PPN: " + dummy2.pageTable[i].ppn);
+			System.out.println("\t-> VPN: " + i + ", ppn: " + dummy2.pageTable[i].ppn);
 		}
-		int temp2 = UserKernal.freePageList.size();
-		System.out.println("VAR, dummy2: Number of PPNs: " + temp2);
+		int temp2 = UserKernel.freePageList.size();
+		System.out.println("dummy2: Number of ppns: " + temp2);
 		dummy2.unloadSections();
-		System.out.println("VAR, dummy2: Checking if PPNs where returned: " + (UserKernel.freeList.size() - temp));
-		System.out.println("VAR, dummy2: Checking last PPN added into freePageList: ");
+		System.out.println("dummy2: Checking if ppns where returned: " + (UserKernel.freePageList.size() - temp2));
+		System.out.println("dummy2: Checking last ppn added into freePageList: ");
 		for(int i = 0; i < dummy2.numPages; i++){
-			int tempPPN = UserKernel.freePageList.get(temp2 + i);
-			System.out.println("* PPN added at: " + (i + temp2) + ", Position: " + tempPPN);
-			UserKernel.freePageList.add(i + temp2, tempPPN);
+			
+			System.out.println("\t-> ppn added at: " + (i + temp2) + ", Position: " + UserKernel.freePageList.get(temp2 + i));
+			UserKernel.freePageList.add(i + temp2, UserKernel.freePageList.get(temp2 + i));
 		}
 
 		System.out.println("************ End of Task 2 Test **************");
