@@ -36,11 +36,12 @@ public class UserProcess {
      * Allocate a new process.
      */
     public UserProcess() {
-	int numPhysPages = Machine.processor().getNumPhysPages();
-	pageTable = new TranslationEntry[numPhysPages];
-	LSLock = new Lock();
-	for (int i=0; i<numPhysPages; i++)
-	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+		int numPhysPages = Machine.processor().getNumPhysPages();
+		pageTable = new TranslationEntry[numPhysPages];
+		LSLock = new Lock();
+		for (int i=0; i<numPhysPages; i++){
+			pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+		}
     }
     
     /**
@@ -163,6 +164,7 @@ public class UserProcess {
 			}
 			pageTable[vpn].used = true;
 			ppn = pageTable[vpn].ppn;
+			//System.out.println(ppn);
 			int paddr = Processor.makeAddress(ppn, off);
 			copyAmount = Math.min(pageSize - off, length);
 			System.arraycopy(memory, paddr, data, offset + amount, copyAmount);
@@ -350,10 +352,10 @@ public class UserProcess {
 		for(int s = 0; s < coff.getNumSections(); s++){
 			CoffSection section = coff.getSection(s);
 			Lib.debug(dbgProcess, "initializing " + section.getName() + " section(" + section.getLength() + " pages).");
-			for(int i = 0; i < section.getLength(); s++){
+			for(int i = 0; i < section.getLength(); i++){
 				vpn = section.getFirstVPN() + i;
 				ppn = UserKernel.getNextAvailablePage();
-				//System.out.println(ppn);
+				//System.out.println(i +"->"+ ppn);
 				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
 				if(ppn < 0)
 					break;
@@ -606,16 +608,23 @@ public class UserProcess {
 		System.out.println("Dummy1's numPages before load is called:" + dummy1.numPages);
 		dummy1.load("sort.coff", dummyArgs);
 		System.out.println("Dummy1's numPages after load is called:" + dummy1.numPages);
-
-
 		dummy1.loadSections();
 		System.out.println("");
 		for(int i = 0; i < dummy1.numPages; i++){
 			System.out.println(i +" ppn: "+dummy1.pageTable[i].ppn);
 		}
 
-		
+		byte[] memory = Machine.processor().getMemory();
+        byte[] data = new byte[pageSize];
+		int vaddr = 1;
 
+		dummy1.readVirtualMemory(vaddr, data, 0, 1024);
+		///VVVV out is 0 0 0
+		System.out.println("dummy1 ReadingVM: " + " " + data[1021] + " " + data[1022] + " " + data[1023]);
+
+
+
+		
 		dummy1.unloadSections();
 
 		UserProcess dummy2 = UserProcess.newUserProcess();
