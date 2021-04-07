@@ -617,6 +617,10 @@ public class UserProcess {
 		
 
 		dummy1.unloadSections();
+
+		UserProcess dummy2 = UserProcess.newUserProcess();
+
+
 	}
 
 	private static void task3Test() {
