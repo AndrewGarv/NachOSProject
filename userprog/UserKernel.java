@@ -81,7 +81,7 @@ public class UserKernel extends ThreadedKernel {
             console.writeByte(c);
         }
         while (c != 'q');
-
+        
         System.out.println("");
     }
 
@@ -129,7 +129,7 @@ public class UserKernel extends ThreadedKernel {
         super.run();
 
         UserProcess process = UserProcess.newUserProcess();
-        
+        process.selfTest();
         String shellProgram = Machine.getShellProgramName();	
         Lib.assertTrue(process.execute(shellProgram, new String[] { }));
 

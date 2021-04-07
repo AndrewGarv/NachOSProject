@@ -38,7 +38,6 @@ public class UserProcess {
 	int numPhysPages = Machine.processor().getNumPhysPages();
 	pageTable = new TranslationEntry[numPhysPages];
 	LSLock = new Lock();
-	selfTest();
 	for (int i=0; i<numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
     }
@@ -592,17 +591,17 @@ public class UserProcess {
 
 
 
-	public static void task2Test() {
+	private static void task2Test() {
 		System.out.println("************ Task 2 Test **************");
 		System.out.println("Number of pages in all of memory: " + Machine.processor().getNumPhysPages());
 
-		//UserProcess dummy1 = 
+		UserProcess dummy1 = UserProcess.newUserProcess();
+		//System.out.println(dummy1.numPages);
+
+		
 	}
 
-	private void selfTest() {
-		System.out.println("************ Phase 2 **************");
-		task2Test();
-		/*
+	private static void task3Test() {
 		System.out.println("Howdy, I'm UserProcess!");
 		System.out.println("The C test program is called task3test.c. Here are the test cases:");
 		System.out.println("1. Attempt to open non-existent file");
@@ -611,7 +610,13 @@ public class UserProcess {
 		System.out.println("4. Attempt to join a non-child process");
 		System.out.println("5. Execute process");
 		System.out.println("6. Join child process");
-		System.out.println("7. Exit process");*/
+		System.out.println("7. Exit process");
+	}
+
+	public void selfTest() {
+		System.out.println("************ Phase 2 **************");
+		task2Test();
+		//task3Test();
 	}
 
 
