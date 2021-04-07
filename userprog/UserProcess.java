@@ -595,6 +595,8 @@ public class UserProcess {
 	public static void task2Test() {
 		System.out.println("************ Task 2 Test **************");
 		System.out.println("Number of pages in all of memory: " + Machine.processor().getNumPhysPages());
+
+		//UserProcess dummy1 = 
 	}
 
 	private void selfTest() {
