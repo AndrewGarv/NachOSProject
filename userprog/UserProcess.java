@@ -5,6 +5,7 @@ import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.Hashtable;
 
 
 
@@ -36,6 +37,7 @@ public class UserProcess {
     public UserProcess() {
 	int numPhysPages = Machine.processor().getNumPhysPages();
 	pageTable = new TranslationEntry[numPhysPages];
+	LSLock = new Lock();
 	selfTest();
 	for (int i=0; i<numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
@@ -64,7 +66,9 @@ public class UserProcess {
 	if (!load(name, args))
 	    return false;
 	
-	new UThread(this).setName(name).fork();
+	threader = new UThread(this);
+	threader.setName(name);
+	threader.fork();
 
 	return true;
     }
@@ -332,9 +336,9 @@ public class UserProcess {
      */
     protected boolean loadSections() {
 		LSLock.acquire();
-		if(numPages > UserKernel.freelist.size()){
+		if(numPages > UserKernel.freePageList.size()){
 			coff.close();
-			Lib.debug(bdgProcess, "\t" + "insufficient physical memory");
+			Lib.debug(dbgProcess, "insufficient physical memory");
 			LSLock.release();
 			return false;
 		}
@@ -345,12 +349,12 @@ public class UserProcess {
 		int ppn = -1;
 		for(int s = 0; s < coff.getNumSections(); s++){
 			CoffSection section = coff.getSection(s);
-			Lib.debug(sbgProcess, "\t" + "initializing " + section.getName() + " section(" + section.getLength() + " pages).");
+			Lib.debug(dbgProcess, "initializing " + section.getName() + " section(" + section.getLength() + " pages).");
 			for(int i = 0; i < section.getLength(); s++){
 				vpn = section.getFirstVPN() + i;
-				ppn = Userkernel.getNextAvailablePage();
+				ppn = UserKernel.getNextAvailablePage();
 				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
-				sections.loadPage(i, ppn);
+				section.loadPage(i, ppn);
 			}
 		}
 
@@ -403,17 +407,7 @@ public class UserProcess {
 
 	
 	
-	private void selfTest() {
-		System.out.println("Howdy, I'm UserProcess!");
-		System.out.println("The C test program is called task3test.c. Here are the test cases:");
-		System.out.println("1. Attempt to open non-existent file");
-		System.out.println("2. Attempt to open a file with null argument");
-		System.out.println("3. Execution Error");
-		System.out.println("4. Attempt to join a non-child process");
-		System.out.println("5. Execute process");
-		System.out.println("6. Join child process");
-		System.out.println("7. Exit process");
-	}
+	
     /**
      * Handle the halt() system call. 
      */
@@ -424,7 +418,7 @@ public class UserProcess {
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
-
+/*
 	private int handleExec(int file, int argc, int argv) {
 		String filename = null;
 		filename = readVirtualMemoryString(file, 256);
@@ -458,13 +452,13 @@ public class UserProcess {
 		}
 		UserProcess child = this.children.get(procid);
 		child.statusLock.acquire();
-		child childStatus = child.exitStatus;
+		UserProcess childStatus = child.exitStatus;
 		if(childStatus == null) {
-			this.statusLock.acquire();
-			child.statusLock.release();
-			this.joinCond.sleep();
-			this.statusLock.release();
-			child.statusLock.acquire();
+			//this.statusLock.acquire();
+			//child.statusLock.release();
+			//this.joinCond.sleep();
+			//this.statusLock.release();
+			//child.statusLock.acquire();
 			childStatus = child.exitStatus;
 		}
 		child.statusLock.release();
@@ -493,9 +487,9 @@ public class UserProcess {
 		this.procMutex.P();
 		
 		if(this.parent != null) {
-			this.parent.statusLock.acquire();
-			this.parent.joinCond.wakeAll();
-			this.parent.statusLock.release();
+			//this.parent.statusLock.acquire();
+			//this.parent.joinCond.wakeAll();
+			//this.parent.statusLock.release();
 		}
 		
 		this.procMutex.V();
@@ -507,7 +501,7 @@ public class UserProcess {
 		}
 		return status;
 	}
-	
+*/	
     private static final int
     syscallHalt = 0,
 	syscallExit = 1,
@@ -552,12 +546,12 @@ public class UserProcess {
 	switch (syscall) {
 	case syscallHalt:
 	    return handleHalt();
-	case syscallExec:
-	    return handleExec(a0, a1, a2);
-	case syscallJoin:
-	    return handleJoin(a0, a1);
-	case syscallExit:
-	    return handleExit(a0);
+	//case syscallExec:
+	//    return handleExec(a0, a1, a2);
+	//case syscallJoin:
+	//    return handleJoin(a0, a1);
+	//case syscallExit:
+	//    return handleExit(a0);
 	default:
 	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 	    Lib.assertNotReached("Unknown system call!");
@@ -595,10 +589,39 @@ public class UserProcess {
 	}
     }
 
+
+
+
+	public static void task2Test() {
+		System.out.println("************ Task 2 Test **************");
+		System.out.println("Number of pages in all of memory: " + Machine.processor().getNumPhysPages());
+	}
+
+	private void selfTest() {
+		System.out.println("************ Phase 2 **************");
+		task2Test();
+		/*
+		System.out.println("Howdy, I'm UserProcess!");
+		System.out.println("The C test program is called task3test.c. Here are the test cases:");
+		System.out.println("1. Attempt to open non-existent file");
+		System.out.println("2. Attempt to open a file with null argument");
+		System.out.println("3. Execution Error");
+		System.out.println("4. Attempt to join a non-child process");
+		System.out.println("5. Execute process");
+		System.out.println("6. Join child process");
+		System.out.println("7. Exit process");*/
+	}
+
+
+
+	
+
+
     /** The program being run by this process. */
     protected Coff coff;
 
 	private Lock LSLock;
+	private UThread threader = null;
 
     /** This process's page table. */
     protected TranslationEntry[] pageTable;
