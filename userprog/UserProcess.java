@@ -619,8 +619,26 @@ public class UserProcess {
 		dummy1.unloadSections();
 
 		UserProcess dummy2 = UserProcess.newUserProcess();
+		System.out.println("VAR, dummy2: numPages variable before Load is called: " + dummy2.numPages);
+		dummy2.load("echo.coff", dummyArgs);
+		System.out.println("VAR, dummy2: numPages variable after Load is called: " + dummy2.numPages);
+		dummy2.loadSections();
+		System.out.println("VAR, dummy2: Checking number of PPN:" + dummy2.numPages);
+		for(int i = 0; i < dummy2.numPages; i++){
+			System.out.println("* VPN: " + i + ", PPN: " + dummy2.pageTable[i].ppn);
+		}
+		int temp2 = UserKernal.freePageList.size();
+		System.out.println("VAR, dummy2: Number of PPNs: " + temp2);
+		dummy2.unloadSections();
+		System.out.println("VAR, dummy2: Checking if PPNs where returned: " + (UserKernel.freeList.size() - temp));
+		System.out.println("VAR, dummy2: Checking last PPN added into freePageList: ");
+		for(int i = 0; i < dummy2.numPages; i++){
+			int tempPPN = UserKernel.freePageList.get(temp2 + i);
+			System.out.println("* PPN added at: " + (i + temp2) + ", Position: " + tempPPN);
+			UserKernel.freePageList.add(i + temp2, tempPPN);
+		}
 
-
+		System.out.println("************ End of Task 2 Test **************");
 	}
 
 	private static void task3Test() {
