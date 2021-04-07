@@ -596,7 +596,7 @@ public class UserProcess {
 		System.out.println("Number of pages in all of memory: " + Machine.processor().getNumPhysPages());
 
 		UserProcess dummy1 = UserProcess.newUserProcess();
-		//System.out.println(dummy1.numPages);
+		System.out.println(dummy1.numPages);
 
 		
 	}
