@@ -606,7 +606,6 @@ public class UserProcess {
 		System.out.println("Dummy1's numPages before load is called:" + dummy1.numPages);
 		dummy1.load("sort.coff", dummyArgs);
 		System.out.println("Dummy1's numPages after load is called:" + dummy1.numPages);
-
 		
 		
 	}
