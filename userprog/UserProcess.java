@@ -3,7 +3,7 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
-
+import java.util.Hashtable;
 import java.io.EOFException;
 
 
@@ -21,7 +21,7 @@ import java.io.EOFException;
  * @see	nachos.network.NetProcess
  */
 public class UserProcess {
-	
+
 	protected OpenFile[] fd;
   	protected int pid;
   	protected UserProcess parent;
@@ -30,7 +30,7 @@ public class UserProcess {
   	protected Integer exitStatus;
   	protected Lock statusLock;
 	protected Condition joinCondition;
-	
+
     /**
      * Allocate a new process.
      */
@@ -41,7 +41,7 @@ public class UserProcess {
 	for (int i=0; i<numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
     }
-    
+
     /**
      * Allocate and return a new process of the correct class. The class name
      * is specified by the <tt>nachos.conf</tt> key
@@ -64,7 +64,7 @@ public class UserProcess {
     public boolean execute(String name, String[] args) {
 	if (!load(name, args))
 	    return false;
-	
+
 	new UThread(this).setName(name).fork();
 
 	return true;
@@ -145,7 +145,7 @@ public class UserProcess {
 	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
 
 	byte[] memory = Machine.processor().getMemory();
-	
+
 	// for now, just assume that virtual addresses equal physical addresses
 	if (vaddr < 0 || vaddr >= memory.length)
 	    return 0;
@@ -188,7 +188,7 @@ public class UserProcess {
 	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
 
 	byte[] memory = Machine.processor().getMemory();
-	
+
 	// for now, just assume that virtual addresses equal physical addresses
 	if (vaddr < 0 || vaddr >= memory.length)
 	    return 0;
@@ -211,7 +211,7 @@ public class UserProcess {
      */
     private boolean load(String name, String[] args) {
 	Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
-	
+
 	OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
 	if (executable == null) {
 	    Lib.debug(dbgProcess, "\topen failed");
@@ -254,7 +254,7 @@ public class UserProcess {
 	}
 
 	// program counter initially points at the program entry point
-	initialPC = coff.getEntryPoint();	
+	initialPC = coff.getEntryPoint();
 
 	// next comes the stack; stack pointer initially points to top of it
 	numPages += stackPages;
@@ -272,7 +272,7 @@ public class UserProcess {
 
 	this.argc = args.length;
 	this.argv = entryOffset;
-	
+
 	for (int i=0; i<argv.length; i++) {
 	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
 	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
@@ -304,7 +304,7 @@ public class UserProcess {
 	// load sections
 	for (int s=0; s<coff.getNumSections(); s++) {
 	    CoffSection section = coff.getSection(s);
-	    
+
 	    Lib.debug(dbgProcess, "\tinitializing " + section.getName()
 		      + " section (" + section.getLength() + " pages)");
 
@@ -315,7 +315,7 @@ public class UserProcess {
 		section.loadPage(i, vpn);
 	    }
 	}
-	
+
 	return true;
     }
 
@@ -323,7 +323,7 @@ public class UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
-    }    
+    }
 
     /**
      * Initialize the processor's registers in preparation for running the
@@ -348,8 +348,8 @@ public class UserProcess {
 	processor.writeRegister(Processor.regA1, argv);
     }
 
-	
-	
+
+
 	private void selfTest() {
 		System.out.println("Howdy, I'm UserProcess!");
 		System.out.println("The C test program is called task3test.c. Here are the test cases:");
@@ -362,18 +362,18 @@ public class UserProcess {
 		System.out.println("7. Exit process");
 	}
     /**
-     * Handle the halt() system call. 
+     * Handle the halt() system call.
      */
     private int handleHalt() {
 
 	Machine.halt();
-	
+
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
 
 	private int handleExec(int file, int argc, int argv) {
-		String filename == null;
+		String filename = null;
 		filename = readVirtualMemoryString(file, 256);
 		if(filename == null) {
 			System.err.println("UNREADABLE_FILENAME_EXCEPTION");
@@ -394,10 +394,10 @@ public class UserProcess {
 		boolean insProg = child.execute(filename, args);
 		if(insProg) {
 			return child.pid;
-			return -1;
 		}
+		return -1;
 	}
-	
+
 	private int handleJoin(int procid, int status) {
 		if(!this.children.containsKey(procid)) {
 			System.err.println("NON_CHILD_EXCEPTION");
@@ -405,7 +405,7 @@ public class UserProcess {
 		}
 		UserProcess child = this.children.get(procid);
 		child.statusLock.acquire();
-		int childStatus = child.exitStatus;
+		Integer childStatus = child.exitStatus;
 		if(childStatus == null) {
 			this.statusLock.acquire();
 			child.statusLock.release();
@@ -424,29 +424,29 @@ public class UserProcess {
 			return 0;
 		}
 	}
-	
+
 	private int handleExit(int status) {
 		unloadSections();
-		
+
 		for(int i = 2; i < this.fd.length; i++) {
 			if(this.fd[i] != null) {
-				this.fd[i].close;
+				this.fd[i].close();
 			}
 		}
-		
+
 		this.statusLock.acquire();
 		this.exitStatus = status;
 		this.statusLock.release();
 		this.procMutex.P();
-		
+
 		if(this.parent != null) {
 			this.parent.statusLock.acquire();
 			this.parent.joinCondition.wakeAll();
 			this.parent.statusLock.release();
 		}
-		
+
 		this.procMutex.V();
-		
+
 		for(UserProcess childproc : this.children.values()) {
 			childproc.procMutex.P();
 			childproc.parent = null;
@@ -454,7 +454,7 @@ public class UserProcess {
 		}
 		return status;
 	}
-	
+
     private static final int
     syscallHalt = 0,
 	syscallExit = 1,
@@ -487,7 +487,7 @@ public class UserProcess {
      * <tr><td>8</td><td><tt>int  close(int fd);</tt></td></tr>
      * <tr><td>9</td><td><tt>int  unlink(char *name);</tt></td></tr>
      * </table>
-     * 
+     *
      * @param	syscall	the syscall number.
      * @param	a0	the first syscall argument.
      * @param	a1	the second syscall argument.
@@ -533,8 +533,8 @@ public class UserProcess {
 				       );
 	    processor.writeRegister(Processor.regV0, result);
 	    processor.advancePC();
-	    break;				       
-				       
+	    break;
+
 	default:
 	    Lib.debug(dbgProcess, "Unexpected exception: " +
 		      Processor.exceptionNames[cause]);
@@ -552,10 +552,10 @@ public class UserProcess {
 
     /** The number of pages in the program's stack. */
     protected final int stackPages = 8;
-    
+
     private int initialPC, initialSP;
     private int argc, argv;
-	
+
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
 }
