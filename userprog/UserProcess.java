@@ -607,8 +607,14 @@ public class UserProcess {
 		dummy1.load("sort.coff", dummyArgs);
 		System.out.println("Dummy1's numPages after load is called:" + dummy1.numPages);
 
+		dummy1.loadSections();
+		System.out.println("");
+		for(int i = 0; i < dummy1.numPages; i++){
+			System.out.println(i +" ppn: "+dummy1.pageTable[i].ppn);
+		}
 		
-		
+
+		dummy1.unloadSections();
 	}
 
 	private static void task3Test() {
