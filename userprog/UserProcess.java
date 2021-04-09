@@ -423,6 +423,175 @@ public class UserProcess {
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
+	
+	public void setter()
+	{
+		fileList[0] = UserKernel.console.openForReading();
+		fileList[1] = UserKernel.console.openForWriting();
+	}
+	
+	public int creat(String name)
+	{
+		boolean a = false;
+		
+			FileSystem systa = Machine.stubFileSystem();
+			OpenFile creator = systa.open(name, true);
+			OpenFile truecreator = new OpenFile(systa, name);
+			int value = fileDescript;
+			fileList[value] = truecreator;
+			System.out.print("File created in position: "); System.out.print(value);
+			System.out.println(" ");
+			fileDescript++;
+			return value;
+	}
+	
+	public int open(String name)
+	{
+		int value = 0;
+		FileSystem systa = Machine.stubFileSystem();
+		OpenFile creator = systa.open(name, true);
+		OpenFile temp = new OpenFile(systa, name);
+		for(int a = 2; a < 20; a++)
+		{
+			if(fileList[a] != null)
+			{
+				if(fileList[a].getName() == name)
+				{
+					System.out.println("File found");
+					value = a;
+				}
+			}
+		}
+		
+		if(value == 0)
+		{
+			System.out.println("File does not exist");
+			return -1;
+		}
+		else
+		{
+			systa.open(temp.getName(), true);
+			OpenFile replace = new OpenFile(systa, name);
+			fileList[value] = replace;
+			System.out.println(name + " has been opened");
+			return value;
+		}
+	}
+	
+	public int read(int fileDescriptor, int count)
+	{
+		byte[] bcount = new byte[count];
+		int value = 0;
+		if(fileList[fileDescriptor] == null)
+		{
+			return -1;
+		}
+		else
+		{
+			OpenFile readFile = fileList[fileDescriptor];
+			value = readFile.read(bcount, 0, count);
+			fileList[fileDescriptor + value] = readFile;
+			return value;
+		}
+	}
+	
+	public int write(int fileDescriptor, int count, int buffer)
+	{
+		byte[] bcount = new byte[buffer];
+		int value = 0;
+		if(fileList[fileDescriptor] == null)
+		{
+			System.out.println("No");
+			return -1;
+		}
+		else
+		{
+			OpenFile writeFile = fileList[fileDescriptor];
+			int guess = writeVirtualMemory(buffer, bcount);
+			value = fileList[fileDescriptor].write(bcount, buffer, count);
+			if(value < count)
+			{
+				System.out.println("Error");
+				System.out.println(value);
+				return -1;
+			}
+			fileList[fileDescriptor + value] = writeFile;
+			return value;
+		}
+	}
+	
+	public int close(int fileDescriptor)
+	{
+		if(fileList[fileDescriptor] == null)
+		{
+			return -1;
+		}
+		else
+		{
+			fileList[fileDescriptor].close();
+			fileList[fileDescriptor] = null;
+			fileDescript--;
+			return 0;
+		}
+	}
+	
+	public int unlink(String name)
+	{
+		FileSystem systa = Machine.stubFileSystem();
+		OpenFile temp = systa.open(name, true);
+		int value = 0;
+		for(int a = 2; a < 20; a++)
+		{
+			if(fileList[a] != null)
+			{
+				if(fileList[a].getName() == name)
+				{
+					System.out.println("File needs to be closed before it can be deleted");
+					value = 1;
+				}
+			}
+		}
+		if(value == 1)
+		{
+			return -1;
+		}
+		else 
+		{
+			systa.remove(name);
+			System.out.println("File deleted");
+			return 0;
+		}
+	}
+	
+	public static void selfTest2()
+	{
+		System.out.println("*************Task 1 test cases***********");
+		UserProcess tester = new UserProcess();
+		tester.setter();
+		System.out.println("Creating File");
+		tester.creat("Test File");
+		System.out.println("----------------Test 2--------------");
+		System.out.println("Opening nonexistent file called No File");
+		tester.open("No File");
+		System.out.println("----------------Test 3--------------");
+		System.out.println("Opening file Test File");
+		tester.open("Test File");
+		System.out.println("----------------Test 4--------------");
+		System.out.println("Writing 15 bytes to test file");
+		System.out.println(tester.write(2,15,2));
+		System.out.println("----------------Test 5--------------");
+		System.out.println("Performing read");
+		System.out.println(tester.read(2,5));
+		System.out.println("----------------Test 6--------------");
+		System.out.println("Performing Unlink. Cannot be done as the file has not been closed yet");
+		tester.unlink("Test File");
+		System.out.println("----------------Test 7--------------");
+		System.out.println("Performing close and then unlink");
+		tester.close(2);
+		tester.unlink("Test File");
+		
+		
+	}
 
 	private int handleExec(int file, int argc, int argv) {
 		String filename = null;
@@ -518,6 +687,9 @@ public class UserProcess {
 	syscallWrite = 7,
 	syscallClose = 8,
 	syscallUnlink = 9;
+	static OpenFile[] fileList = new OpenFile[20];
+	static int[] omg = new int[20];
+	static int fileDescript = 2;
 
     /**
      * Handle a syscall exception. Called by <tt>handleException()</tt>. The
