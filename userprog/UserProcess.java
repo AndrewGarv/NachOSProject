@@ -423,7 +423,9 @@ public class UserProcess {
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
-	
+	    /**
+     * This method exists to set the first two spaces of the fileList to the input and output stream
+     */
 	public void setter()
 	{
 		fileList[0] = UserKernel.console.openForReading();
@@ -562,7 +564,9 @@ public class UserProcess {
 			return 0;
 		}
 	}
-	
+	    /**
+     * Issues getting docker and cross compile for C programs so testing was done in Java
+     */
 	public static void selfTest2()
 	{
 		System.out.println("*************Task 1 test cases***********");
