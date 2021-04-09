@@ -5,9 +5,6 @@ import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
-import java.util.Hashtable;
-
-
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -22,26 +19,14 @@ import java.util.Hashtable;
  * @see	nachos.network.NetProcess
  */
 public class UserProcess {
-	
-	protected OpenFile[] fd;
-  	protected int pid;
-  	protected UserProcess parent;
-  	protected Semaphore procMutex = new Semaphore(1);
-  	protected Hashtable<Integer, UserProcess> children = new Hashtable<Integer, UserProcess>();
-  	protected Integer exitStatus;
-  	protected Lock statusLock;
-	  protected Condition joinCondition;
-	
     /**
      * Allocate a new process.
      */
     public UserProcess() {
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
-		LSLock = new Lock();
-		for (int i=0; i<numPhysPages; i++){
-			pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
-		}
+	int numPhysPages = Machine.processor().getNumPhysPages();
+	pageTable = new TranslationEntry[numPhysPages];
+	for (int i=0; i<numPhysPages; i++)
+	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
     }
     
     /**
@@ -67,9 +52,7 @@ public class UserProcess {
 	if (!load(name, args))
 	    return false;
 	
-	threader = new UThread(this);
-	threader.setName(name);
-	threader.fork();
+	new UThread(this).setName(name).fork();
 
 	return true;
     }
@@ -144,37 +127,20 @@ public class UserProcess {
      *			the array.
      * @return	the number of bytes successfully transferred.
      */
-    public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		
-		//check if any value are invalid, if true return 0 as no data was transferred.
-		if((vaddr < 0) || (data == null) || (offset < 0) || (length < 0) || (offset+length > data.length)){
-			return 0;
-		}
-		byte[] memory = Machine.processor().getMemory();
-		int vpn = Processor.pageFromAddress(vaddr);
-		int off = Processor.offsetFromAddress(vaddr);
-		int ppn = -1;
-		int amount = 0;
-		int copyAmount = 0;
+    public int readVirtualMemory(int vaddr, byte[] data, int offset,
+				 int length) {
+	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
 
-		while(length > 0){
-			//check if vpn is valid
-			if(vpn > pageTable.length || vpn < 0){
-				break;
-			}
-			pageTable[vpn].used = true;
-			ppn = pageTable[vpn].ppn;
-			//System.out.println(ppn);
-			int paddr = Processor.makeAddress(ppn, off);
-			copyAmount = Math.min(pageSize - off, length);
-			System.arraycopy(memory, paddr, data, offset + amount, copyAmount);
-			off = 0;
-			amount += copyAmount;
-			length -= copyAmount;
-			vpn++;
-		}
+	byte[] memory = Machine.processor().getMemory();
+	
+	// for now, just assume that virtual addresses equal physical addresses
+	if (vaddr < 0 || vaddr >= memory.length)
+	    return 0;
 
-		return amount;
+	int amount = Math.min(length, memory.length-vaddr);
+	System.arraycopy(memory, vaddr, data, offset, amount);
+
+	return amount;
     }
 
     /**
@@ -204,41 +170,20 @@ public class UserProcess {
      *			virtual memory.
      * @return	the number of bytes successfully transferred.
      */
-    public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		
-		//check if any value are invalid, if true return 0 as no data was transferred.
-		if((vaddr < 0) || (data == null) || (offset < 0) || (length < 0) || (offset+length > data.length)){
-			return 0;
-		}
-		byte[] memory = Machine.processor().getMemory();
-		int vpn = Processor.pageFromAddress(vaddr);
-		int off = Processor.offsetFromAddress(vaddr);
-		int ppn = -1;
-		int amount = 0;
-		int copyAmount = 0;
-		
-		while(length > 0){
-			//check if vpn is valid
-			if(vpn > pageTable.length || vpn < 0){
-				break;
-			}
-			ppn = pageTable[vpn].ppn;
-			//check if vpn is read only
-			if(pageTable[vpn].readOnly){
-				break;
-			}
-			pageTable[vpn].dirty = true;
-			pageTable[vpn].used = true;
-			int paddr = Processor.makeAddress(ppn, off);
-			copyAmount = Math.min(pageSize - off, length);
-			System.arraycopy(data, offset + amount, memory, paddr, copyAmount);
-			off = 0;
-			amount += copyAmount;
-			length -= copyAmount;
-			vpn++;
-		}
+    public int writeVirtualMemory(int vaddr, byte[] data, int offset,
+				  int length) {
+	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
 
-		return amount;
+	byte[] memory = Machine.processor().getMemory();
+	
+	// for now, just assume that virtual addresses equal physical addresses
+	if (vaddr < 0 || vaddr >= memory.length)
+	    return 0;
+
+	int amount = Math.min(length, memory.length-vaddr);
+	System.arraycopy(data, offset, memory, vaddr, amount);
+
+	return amount;
     }
 
     /**
@@ -337,54 +282,34 @@ public class UserProcess {
      * @return	<tt>true</tt> if the sections were successfully loaded.
      */
     protected boolean loadSections() {
-		LSLock.acquire();
-		if(numPages > UserKernel.freePageList.size()){
-			coff.close();
-			Lib.debug(dbgProcess, "insufficient physical memory");
-			LSLock.release();
-			return false;
-		}
-		//initialize page table
-		//pageTable = new TranslationEntry[numPages];
+	if (numPages > Machine.processor().getNumPhysPages()) {
+	    coff.close();
+	    Lib.debug(dbgProcess, "\tinsufficient physical memory");
+	    return false;
+	}
 
-		int vpn = 0;
-		int ppn = -1;
-		for(int s = 0; s < coff.getNumSections(); s++){
-			CoffSection section = coff.getSection(s);
-			Lib.debug(dbgProcess, "initializing " + section.getName() + " section(" + section.getLength() + " pages).");
-			for(int i = 0; i < section.getLength(); i++){
-				vpn = section.getFirstVPN() + i;
-				ppn = UserKernel.getNextAvailablePage();
-				//System.out.println(i +"->"+ ppn);
-				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
-				if(ppn < 0)
-					break;
-				section.loadPage(i, ppn);
-			}
-		}
+	// load sections
+	for (int s=0; s<coff.getNumSections(); s++) {
+	    CoffSection section = coff.getSection(s);
+	    
+	    Lib.debug(dbgProcess, "\tinitializing " + section.getName()
+		      + " section (" + section.getLength() + " pages)");
 
-		for(int i = 0; i < stackPages; i++){
-			vpn++;
-			ppn = UserKernel.getNextAvailablePage();
-			pageTable[vpn] = new TranslationEntry(vpn, ppn, true, false, false, false);
-		}
+	    for (int i=0; i<section.getLength(); i++) {
+		int vpn = section.getFirstVPN()+i;
 
-		LSLock.release();
-		
-		return true;
+		// for now, just assume virtual addresses=physical addresses
+		section.loadPage(i, vpn);
+	    }
+	}
+	
+	return true;
     }
 
     /**
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
-		if(pageTable == null){
-			return;
-		}
-
-		for(int i = 0; i < pageTable.length; i++){
-			UserKernel.returnAvailablePage(pageTable[i].ppn);
-		}
     }    
 
     /**
@@ -410,9 +335,6 @@ public class UserProcess {
 	processor.writeRegister(Processor.regA1, argv);
     }
 
-	
-	
-	
     /**
      * Handle the halt() system call. 
      */
@@ -423,92 +345,179 @@ public class UserProcess {
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
     }
-
-	private int handleExec(int file, int argc, int argv) {
-		String filename = null;
-		filename = readVirtualMemoryString(file, 256);
-		if(filename == null) {
-			System.err.println("UNREADABLE_FILENAME_EXCEPTION");
-			return -1;
-		}
-		String[] args = new String[argc];
-		byte[] buffer = new byte[4];
-		for(int i = 0; i < argc; i++) {
-			args[i] = readVirtualMemoryString(Lib.bytesToInt(buffer, 0), 256);
-			if(args[i] == null) {
-				System.err.println("UNREADABLE_ARGUMENT_EXCEPTION");
-				return -1;
-			}
-		}
-		UserProcess child = newUserProcess();
-		this.children.put(child.pid, child);
-		child.parent = this;
-		boolean insProg = child.execute(filename, args);
-		if(insProg) {
-			return child.pid;
-		}
-		return -1;
+	
+	public void setter()
+	{
+		fileList[0] = UserKernel.console.openForReading();
+		fileList[1] = UserKernel.console.openForWriting();
 	}
 	
-	private int handleJoin(int procid, int status) {
-		if(!this.children.containsKey(procid)) {
-			System.err.println("NON_CHILD_EXCEPTION");
+	public int creat(String name)
+	{
+		boolean a = false;
+		
+			FileSystem systa = Machine.stubFileSystem();
+			OpenFile creator = systa.open(name, true);
+			OpenFile truecreator = new OpenFile(systa, name);
+			int value = fileDescript;
+			fileList[value] = truecreator;
+			System.out.print("File created in position: "); System.out.print(value);
+			System.out.println(" ");
+			fileDescript++;
+			return value;
+	}
+	
+	public int open(String name)
+	{
+		int value = 0;
+		FileSystem systa = Machine.stubFileSystem();
+		OpenFile creator = systa.open(name, true);
+		OpenFile temp = new OpenFile(systa, name);
+		for(int a = 2; a < 20; a++)
+		{
+			if(fileList[a] != null)
+			{
+				if(fileList[a].getName() == name)
+				{
+					System.out.println("File found");
+					value = a;
+				}
+			}
+		}
+		
+		if(value == 0)
+		{
+			System.out.println("File does not exist");
 			return -1;
 		}
-		UserProcess child = this.children.get(procid);
-		child.statusLock.acquire();
-		Integer childStatus = child.exitStatus;
-		if(childStatus == null) {
-			this.statusLock.acquire();
-			child.statusLock.release();
-			this.joinCondition.sleep();
-			this.statusLock.release();
-			child.statusLock.acquire();
-			childStatus = child.exitStatus;
+		else
+		{
+			systa.open(temp.getName(), true);
+			OpenFile replace = new OpenFile(systa, name);
+			fileList[value] = replace;
+			System.out.println(name + " has been opened");
+			return value;
 		}
-		child.statusLock.release();
-		this.children.remove(procid);
-		byte[] statuses = Lib.bytesFromInt(childStatus.intValue());
-		writeVirtualMemory(status, statuses);
-		if(childStatus.intValue() == 0) {
-			return 1;
-		} else {
+	}
+	
+	public int read(int fileDescriptor, int count)
+	{
+		byte[] bcount = new byte[count];
+		int value = 0;
+		if(fileList[fileDescriptor] == null)
+		{
+			return -1;
+		}
+		else
+		{
+			OpenFile readFile = fileList[fileDescriptor];
+			value = readFile.read(bcount, 0, count);
+			fileList[fileDescriptor + value] = readFile;
+			return value;
+		}
+	}
+	
+	public int write(int fileDescriptor, int count, int buffer)
+	{
+		byte[] bcount = new byte[buffer];
+		int value = 0;
+		if(fileList[fileDescriptor] == null)
+		{
+			System.out.println("No");
+			return -1;
+		}
+		else
+		{
+			OpenFile writeFile = fileList[fileDescriptor];
+			int guess = writeVirtualMemory(buffer, bcount);
+			value = fileList[fileDescriptor].write(bcount, buffer, count);
+			if(value < count)
+			{
+				System.out.println("Error");
+				System.out.println(value);
+				return -1;
+			}
+			fileList[fileDescriptor + value] = writeFile;
+			return value;
+		}
+	}
+	
+	public int close(int fileDescriptor)
+	{
+		if(fileList[fileDescriptor] == null)
+		{
+			return -1;
+		}
+		else
+		{
+			fileList[fileDescriptor].close();
+			fileList[fileDescriptor] = null;
+			fileDescript--;
 			return 0;
 		}
 	}
 	
-	private int handleExit(int status) {
-		unloadSections();
-
-		for(int i = 2; i < this.fd.length; i++) {
-			if(this.fd[i] != null) {
-				this.fd[i].close();
+	public int unlink(String name)
+	{
+		FileSystem systa = Machine.stubFileSystem();
+		OpenFile temp = systa.open(name, true);
+		int value = 0;
+		for(int a = 2; a < 20; a++)
+		{
+			if(fileList[a] != null)
+			{
+				if(fileList[a].getName() == name)
+				{
+					System.out.println("File needs to be closed before it can be deleted");
+					value = 1;
+				}
 			}
 		}
-
-		this.statusLock.acquire();
-		this.exitStatus = status;
-		this.statusLock.release();
-		this.procMutex.P();
-
-		if(this.parent != null) {
-			this.parent.statusLock.acquire();
-			this.parent.joinCondition.wakeAll();
-			this.parent.statusLock.release();
+		if(value == 1)
+		{
+			return -1;
 		}
-
-		this.procMutex.V();
-
-		for(UserProcess childproc : this.children.values()) {
-			childproc.procMutex.P();
-			childproc.parent = null;
-			childproc.procMutex.V();
+		else 
+		{
+			systa.remove(name);
+			System.out.println("File deleted");
+			return 0;
 		}
-		return status;
 	}
 	
+	public static void selfTest2()
+	{
+		System.out.println("*************Task 1 test cases***********");
+		UserProcess tester = new UserProcess();
+		tester.setter();
+		System.out.println("Creating File");
+		tester.creat("Test File");
+		System.out.println("----------------Test 2--------------");
+		System.out.println("Opening nonexistent file called No File");
+		tester.open("No File");
+		System.out.println("----------------Test 3--------------");
+		System.out.println("Opening file Test File");
+		tester.open("Test File");
+		System.out.println("----------------Test 4--------------");
+		System.out.println("Writing 15 bytes to test file");
+		System.out.println(tester.write(2,15,2));
+		System.out.println("----------------Test 5--------------");
+		System.out.println("Performing read");
+		System.out.println(tester.read(2,5));
+		System.out.println("----------------Test 6--------------");
+		System.out.println("Performing Unlink. Cannot be done as the file has not been closed yet");
+		tester.unlink("Test File");
+		System.out.println("----------------Test 7--------------");
+		System.out.println("Performing close and then unlink");
+		tester.close(2);
+		tester.unlink("Test File");
+		
+		
+	}
+
+
     private static final int
-    syscallHalt = 0,
+        syscallHalt = 0,
 	syscallExit = 1,
 	syscallExec = 2,
 	syscallJoin = 3,
@@ -518,6 +527,9 @@ public class UserProcess {
 	syscallWrite = 7,
 	syscallClose = 8,
 	syscallUnlink = 9;
+	static OpenFile[] fileList = new OpenFile[20];
+	static int[] omg = new int[20];
+	static int fileDescript = 2;
 
     /**
      * Handle a syscall exception. Called by <tt>handleException()</tt>. The
@@ -551,12 +563,8 @@ public class UserProcess {
 	switch (syscall) {
 	case syscallHalt:
 	    return handleHalt();
-	case syscallExec:
-	    return handleExec(a0, a1, a2);
-	case syscallJoin:
-	    return handleJoin(a0, a1);
-	case syscallExit:
-	    return handleExit(a0);
+
+
 	default:
 	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 	    Lib.assertNotReached("Unknown system call!");
@@ -594,107 +602,8 @@ public class UserProcess {
 	}
     }
 
-
-
-
-	private static void task2Test() {
-
-		String[] dummyArgs = {"0"};
-
-		System.out.println("************ Task 2 Test **************");
-		System.out.println("Number of pages in all of memory: " + Machine.processor().getNumPhysPages());
-
-		UserProcess dummy1 = UserProcess.newUserProcess();
-		System.out.println("Dummy1's numPages before load is called:" + dummy1.numPages);
-		dummy1.load("sort.coff", dummyArgs);
-		System.out.println("Dummy1's numPages after load is called:" + dummy1.numPages);
-		dummy1.loadSections();
-		for(int i = 0; i < dummy1.numPages; i++){
-			System.out.println("\t-> VPN: " + i +" ppn: "+dummy1.pageTable[i].ppn);
-		}
-
-		//Reading
-		byte[] memory = Machine.processor().getMemory();
-        byte[] data = new byte[pageSize];
-		int vaddr = 1;
-		dummy1.readVirtualMemory(vaddr, data, 0, 1024);
-		System.out.println("dummy1 ReadingVM: " + " " + data[121] + " " + data[122] + " " + data[123]);
-
-		//Writing
-		int slots = 4;
-		vaddr = 1024 * slots - 1;
-        data = new byte[pageSize];
-        data[0] = 6;
-		data[1] = 9;
-		int numWritten = dummy1.writeVirtualMemory(vaddr, data, 0, 2);
-        int paddr = Processor.makeAddress(dummy1.pageTable[slots].ppn, 0);
-		System.out.println("dummy1: Number of bytes written: " + numWritten);
-        System.out.println("dummy1: Writing in VM: " + memory[paddr-1] + " " + memory[paddr] + " " + memory[paddr+1] + " " + memory[paddr+2]);
-
-		//Unloading
-		int temp = UserKernel.freePageList.size();
-		System.out.println("dummy1: The list size before return ppn: " + temp);
-		dummy1.unloadSections();
-		System.out.println("dummy1: Checking to see if all ppn are returned: " + (UserKernel.freePageList.size() - temp));
-        System.out.println("dummy1: Verifying the last ppn added into the freePageList:");
-		for (int i = 0; i < dummy1.numPages; i++) {
-            int tempPPN = UserKernel.freePageList.get(temp + i);
-            System.out.println("\t-> ppn added at: " + (temp + i) + ", position: " + tempPPN);
-            UserKernel.freePageList.add(temp + i, tempPPN);
-        }
-
-		//dummy2
-		UserProcess dummy2 = UserProcess.newUserProcess();
-		System.out.println("dummy2: numPages variable before load is called: " + dummy2.numPages);
-		dummy2.load("matmult.coff", dummyArgs);
-		System.out.println("dummy2: numPages variable after load is called: " + dummy2.numPages);
-		dummy2.loadSections();
-		System.out.println("dummy2: Checking number of ppn:" + dummy2.numPages);
-		for(int i = 0; i < dummy2.numPages; i++){
-			System.out.println("\t-> VPN: " + i + ", ppn: " + dummy2.pageTable[i].ppn);
-		}
-		int temp2 = UserKernel.freePageList.size();
-		System.out.println("dummy2: Number of ppns: " + temp2);
-		dummy2.unloadSections();
-		System.out.println("dummy2: Checking if ppns where returned: " + (UserKernel.freePageList.size() - temp2));
-		System.out.println("dummy2: Checking last ppn added into freePageList: ");
-		for(int i = 0; i < dummy2.numPages; i++){
-			
-			System.out.println("\t-> ppn added at: " + (i + temp2) + ", Position: " + UserKernel.freePageList.get(temp2 + i));
-			UserKernel.freePageList.add(i + temp2, UserKernel.freePageList.get(temp2 + i));
-		}
-
-		System.out.println("************ End of Task 2 Test **************");
-	}
-
-	private static void task3Test() {
-		System.out.println("Howdy, I'm UserProcess!");
-		System.out.println("The C test program is called task3test.c. Here are the test cases:");
-		System.out.println("1. Attempt to open non-existent file");
-		System.out.println("2. Attempt to open a file with null argument");
-		System.out.println("3. Execution Error");
-		System.out.println("4. Attempt to join a non-child process");
-		System.out.println("5. Execute process");
-		System.out.println("6. Join child process");
-		System.out.println("7. Exit process");
-	}
-
-	public void selfTest() {
-		System.out.println("************ Phase 2 **************");
-		task2Test();
-		//task3Test();
-	}
-
-
-
-	
-
-
     /** The program being run by this process. */
     protected Coff coff;
-
-	private Lock LSLock;
-	private UThread threader = null;
 
     /** This process's page table. */
     protected TranslationEntry[] pageTable;
